@@ -199,6 +199,7 @@ fn ui<B: Backend>(frame: &mut Frame<B>, app: &mut App) {
         let best_bid = app.order_book.bids.last().copied().unwrap_or_default();
         let best_ask = app.order_book.asks.first().copied().unwrap_or_default();
 
+        // Calculate percent spread, while avoiding divide by zero errors.
         100. - (best_ask.price / best_bid.price) * 100.
     };
     let text = vec![

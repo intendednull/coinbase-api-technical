@@ -9,7 +9,7 @@ use serde_json::Value;
 use crate::client::Client;
 
 /// A level as received from coinbase.
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq)]
 pub struct Level {
     pub size: f64,
     pub price: f64,
@@ -33,7 +33,7 @@ impl Level {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub enum OrderSide {
     Buy,
     Sell,
@@ -52,14 +52,14 @@ impl TryFrom<&str> for OrderSide {
 }
 
 /// An order book diff as received from coinbase.
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub struct OrderBookDiff {
     pub order_side: OrderSide,
     pub level: Level,
 }
 
 /// A l2update as received from coinbase.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct Level2Update {
     #[serde(rename = "type")]
     type_: String,
@@ -106,7 +106,7 @@ impl Level2Update {
 }
 
 /// Order book state.
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, PartialEq)]
 pub struct OrderBook {
     #[serde(rename = "type")]
     type_: String,
@@ -185,4 +185,86 @@ pub async fn update_order_book(snapshot: &mut OrderBook, client: &mut Client) ->
         .sort_by(|&a, &b| a.price.partial_cmp(&b.price).unwrap_or(Ordering::Less));
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn parse_level() {
+        let value = json!(["1", "1"]);
+        let level = Level::from_value(&value).unwrap();
+        assert_eq!(level.size, 1.);
+        assert_eq!(level.price, 1.);
+    }
+    #[test]
+    fn parse_order_book() {
+        let value = json!({
+          "type": "snapshot",
+          "product_id": "BTC-USD",
+          "bids": [["10101.10", "0.45054140"]],
+          "asks": [["10102.55", "0.57753524"]]
+        });
+        let order_book = OrderBook::from_value(&value).unwrap();
+        assert_eq!(order_book.product_id, "BTC-USD".to_string());
+        assert_eq!(
+            order_book.bids,
+            vec![Level {
+                price: 10101.10,
+                size: 0.45054140
+            }]
+        );
+        assert_eq!(
+            order_book.asks,
+            vec![Level {
+                price: 10102.55,
+                size: 0.57753524
+            }]
+        );
+    }
+
+    #[test]
+    fn parse_l2update() {
+        let value = json!({
+          "type": "l2update",
+          "product_id": "BTC-USD",
+          "changes": [
+            [
+              "buy",
+              "22356.270000",
+              "0.00000000"
+            ],
+            [
+              "sell",
+              "22356.300000",
+              "1.00000000"
+            ]
+          ],
+          "time": "2022-08-04T15:25:05.010758Z"
+        });
+        let l2update = Level2Update::from_value(&value).unwrap();
+        assert_eq!(l2update.product_id, "BTC-USD".to_string());
+        assert_eq!(
+            l2update.changes,
+            vec![
+                OrderBookDiff {
+                    order_side: OrderSide::Buy,
+                    level: Level {
+                        price: 22356.27,
+                        size: 0.
+                    }
+                },
+                OrderBookDiff {
+                    order_side: OrderSide::Sell,
+                    level: Level {
+                        price: 22356.3,
+                        size: 1.
+                    }
+                }
+            ]
+        );
+    }
 }
