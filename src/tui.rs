@@ -9,24 +9,25 @@ use itertools::{EitherOrBoth, Itertools};
 use std::io;
 use tui::{
     backend::{Backend, CrosstermBackend},
-    layout::{Constraint, Layout},
+    layout::{Alignment, Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
-    widgets::{Block, Borders, Cell, Row, Table, TableState},
+    text::{Span, Spans},
+    widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState, Wrap},
     Frame, Terminal,
 };
 
-use crate::model::Snapshot;
+use crate::model::OrderBook;
 
 pub struct App {
     state: TableState,
-    pub order_book: Snapshot,
+    pub order_book: OrderBook,
 }
 
 impl App {
     pub fn new() -> App {
         App {
             state: TableState::default(),
-            order_book: Snapshot::default(),
+            order_book: OrderBook::default(),
         }
     }
 
@@ -115,12 +116,12 @@ pub fn update_frame<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> ey
     Ok(true)
 }
 
-fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
+fn ui<B: Backend>(frame: &mut Frame<B>, app: &mut App) {
     let rects = Layout::default()
-        .constraints([Constraint::Percentage(100)].as_ref())
-        .margin(5)
-        .split(f.size());
-
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Percentage(80), Constraint::Percentage(20)].as_ref())
+        .margin(2)
+        .split(frame.size());
     let selected_style = Style::default().add_modifier(Modifier::REVERSED);
     let normal_style = Style::default().bg(Color::Blue);
     let header_cells = ["Bid Price", "Bid Size", "Ask Price", "Ask Size"]
@@ -165,7 +166,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
             }
         });
 
-    let t = Table::new(rows)
+    let table = Table::new(rows)
         .header(header)
         .block(
             Block::default()
@@ -180,5 +181,46 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
             Constraint::Percentage(25),
             Constraint::Percentage(25),
         ]);
-    f.render_stateful_widget(t, rects[0], &mut app.state);
+
+    frame.render_stateful_widget(table, rects[0], &mut app.state);
+
+    // Add stats text
+    let total_bid_size: f64 = app.order_book.bids.iter().map(|bid| bid.size).sum();
+    let total_ask_size: f64 = app.order_book.asks.iter().map(|bid| bid.size).sum();
+    let percent_spread = {
+        let best_bid = app.order_book.bids.last().copied().unwrap_or_default();
+        let best_ask = app.order_book.asks.first().copied().unwrap_or_default();
+
+        100. - (best_ask.price / best_bid.price) * 100.
+    };
+    let text = vec![
+        Spans::from(Span::styled(
+            format!("Total Bid Size: {total_bid_size}"),
+            Style::default().bg(Color::Black).fg(Color::White),
+        )),
+        Spans::from(Span::styled(
+            format!("Total Ask Size: {total_ask_size}"),
+            Style::default().bg(Color::Black).fg(Color::White),
+        )),
+        Spans::from(Span::styled(
+            format!("Percent Spread: {percent_spread}"),
+            Style::default().bg(Color::Black).fg(Color::White),
+        )),
+    ];
+    let create_block = |title| {
+        Block::default()
+            .borders(Borders::ALL)
+            .style(Style::default().bg(Color::Black).fg(Color::White))
+            .title(Span::styled(
+                title,
+                Style::default().add_modifier(Modifier::BOLD),
+            ))
+    };
+    let paragraph = Paragraph::new(text.clone())
+        .style(Style::default().bg(Color::White).fg(Color::Black))
+        .block(create_block(""))
+        .alignment(Alignment::Left)
+        .wrap(Wrap { trim: true });
+
+    frame.render_widget(paragraph, rects[1]);
 }
