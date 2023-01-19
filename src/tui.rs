@@ -203,20 +203,17 @@ fn ui<B: Backend>(frame: &mut Frame<B>, app: &mut App) {
 
     frame.render_stateful_widget(table, rects[0], &mut app.state);
 
-    let percent_spread = {
-        let best_bid = app.order_book.bids.last().copied().unwrap_or_default();
-        let best_ask = app.order_book.asks.first().copied().unwrap_or_default();
-
-        // Calculate percent spread, while avoiding divide by zero errors.
-        100. - (best_ask.price / best_bid.price) * 100.
-    };
+    let best_bid = app.order_book.bids.last().copied().unwrap_or_default();
+    let best_ask = app.order_book.asks.first().copied().unwrap_or_default();
+    let percent_spread = 100. - (best_ask.price / best_bid.price) * 100.;
+    let midpoint = (best_ask.price + best_bid.price) / 2.;
     let text = vec![
         Spans::from(Span::styled(
-            format!("Total Bid Size: {total_bid_size}"),
+            format!("Total Bid Size: {total_bid_size} | Total Ask Size: {total_ask_size}"),
             Style::default().bg(Color::Black).fg(Color::White),
         )),
         Spans::from(Span::styled(
-            format!("Total Ask Size: {total_ask_size}"),
+            format!("Midpoint: {midpoint}"),
             Style::default().bg(Color::Black).fg(Color::White),
         )),
         Spans::from(Span::styled(
