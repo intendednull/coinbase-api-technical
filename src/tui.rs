@@ -139,6 +139,10 @@ fn ui<B: Backend>(frame: &mut Frame<B>, app: &mut App) {
         .style(normal_style)
         .height(1)
         .bottom_margin(1);
+    // Accumulate stats here. A little ugly, but allows us to iterate over the entire order book
+    // only once.
+    let mut total_bid_size = 0.;
+    let mut total_ask_size = 0.;
     let rows = app
         .order_book
         .bids
@@ -147,6 +151,9 @@ fn ui<B: Backend>(frame: &mut Frame<B>, app: &mut App) {
         .zip_longest(app.order_book.asks.iter())
         .map(|item| match item {
             EitherOrBoth::Both(bid, ask) => {
+                total_ask_size += ask.size;
+                total_bid_size += bid.size;
+
                 let cells = [
                     bid.price.to_string(),
                     bid.size.to_string(),
@@ -159,6 +166,8 @@ fn ui<B: Backend>(frame: &mut Frame<B>, app: &mut App) {
                 Row::new(cells).bottom_margin(1)
             }
             EitherOrBoth::Left(bid) => {
+                total_bid_size += bid.size;
+
                 let cells = [bid.price.to_string(), bid.size.to_string()]
                     .into_iter()
                     .map(Cell::from);
@@ -166,6 +175,8 @@ fn ui<B: Backend>(frame: &mut Frame<B>, app: &mut App) {
                 Row::new(cells)
             }
             EitherOrBoth::Right(ask) => {
+                total_ask_size += ask.size;
+
                 let cells = [ask.price.to_string(), ask.size.to_string()]
                     .into_iter()
                     .map(Cell::from);
@@ -192,9 +203,6 @@ fn ui<B: Backend>(frame: &mut Frame<B>, app: &mut App) {
 
     frame.render_stateful_widget(table, rects[0], &mut app.state);
 
-    // Add stats text
-    let total_bid_size: f64 = app.order_book.bids.iter().map(|bid| bid.size).sum();
-    let total_ask_size: f64 = app.order_book.asks.iter().map(|bid| bid.size).sum();
     let percent_spread = {
         let best_bid = app.order_book.bids.last().copied().unwrap_or_default();
         let best_ask = app.order_book.asks.first().copied().unwrap_or_default();
