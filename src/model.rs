@@ -1,3 +1,5 @@
+//! Data model for coinbase api
+
 use std::cmp::Ordering;
 
 use chrono::{DateTime, Utc};
@@ -6,6 +8,7 @@ use serde_json::Value;
 
 use crate::client::Client;
 
+/// A level as received from coinbase.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Default)]
 pub struct Level {
     pub size: f64,
@@ -48,12 +51,14 @@ impl TryFrom<&str> for OrderSide {
     }
 }
 
+/// An order book diff as received from coinbase.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct OrderBookDiff {
     pub order_side: OrderSide,
     pub level: Level,
 }
 
+/// A l2update as received from coinbase.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Level2Update {
     #[serde(rename = "type")]
@@ -141,6 +146,7 @@ impl OrderBook {
     }
 }
 
+/// Update the given order book with the next frame received from client.
 pub async fn update_order_book(snapshot: &mut OrderBook, client: &mut Client) -> eyre::Result<()> {
     let frame = client.next_frame().await?;
     // If an l2update is received, update the order book.
@@ -154,22 +160,29 @@ pub async fn update_order_book(snapshot: &mut OrderBook, client: &mut Client) ->
             match change.order_side {
                 OrderSide::Buy => {
                     snapshot.asks.push(change.level);
-                    snapshot
-                        .asks
-                        .sort_by(|&a, &b| a.price.partial_cmp(&b.price).unwrap_or(Ordering::Less));
                 }
                 OrderSide::Sell => {
                     snapshot.bids.push(change.level);
-                    snapshot
-                        .bids
-                        .sort_by(|&a, &b| a.price.partial_cmp(&b.price).unwrap_or(Ordering::Less));
                 }
             }
         }
-    // Otherwise, if a new snapshot is received, update the current one.
+    // If a new snapshot is received, replace the current one.
     } else if let Some(new_snapshot) = OrderBook::from_value(&frame) {
         *snapshot = new_snapshot;
+    // Otherwise return early.
+    } else {
+        return Ok(());
     }
+
+    // Sort our results. We could potentially wait to do this until rendering on the UI side,
+    // however right now we render immediately, so it doesn't matter much. If we delayed UI
+    // updates to some interval, we could optimize this by sorting on that interval instead.
+    snapshot
+        .asks
+        .sort_by(|&a, &b| a.price.partial_cmp(&b.price).unwrap_or(Ordering::Less));
+    snapshot
+        .bids
+        .sort_by(|&a, &b| a.price.partial_cmp(&b.price).unwrap_or(Ordering::Less));
 
     Ok(())
 }

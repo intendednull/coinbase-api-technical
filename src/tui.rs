@@ -1,3 +1,5 @@
+//! Terminal user interface
+
 use std::{io::Stdout, time::Duration};
 
 use crossterm::{
@@ -18,6 +20,7 @@ use tui::{
 
 use crate::model::OrderBook;
 
+/// All state needed for TUI App.
 pub struct App {
     state: TableState,
     pub order_book: OrderBook,
@@ -31,6 +34,7 @@ impl App {
         }
     }
 
+    /// Select the next item in the table.
     pub fn next(&mut self) {
         let size = self.order_book.bids.len().max(self.order_book.asks.len());
         let i = match self.state.selected() {
@@ -46,6 +50,7 @@ impl App {
         self.state.select(Some(i));
     }
 
+    /// Select the previous item in the table.
     pub fn previous(&mut self) {
         let size = self.order_book.bids.len().max(self.order_book.asks.len());
         let i = match self.state.selected() {
@@ -62,6 +67,7 @@ impl App {
     }
 }
 
+/// Setup terminal for UI rendering.
 pub fn setup() -> eyre::Result<Terminal<CrosstermBackend<Stdout>>> {
     // setup terminal
     enable_raw_mode()?;
@@ -71,6 +77,7 @@ pub fn setup() -> eyre::Result<Terminal<CrosstermBackend<Stdout>>> {
     Ok(Terminal::new(backend)?)
 }
 
+/// Return the terminal to normal.
 pub fn teardown<B>(mut terminal: Terminal<B>) -> eyre::Result<()>
 where
     B: Backend + std::io::Write,
@@ -116,6 +123,7 @@ pub fn update_frame<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> ey
     Ok(true)
 }
 
+/// Build UI layout
 fn ui<B: Backend>(frame: &mut Frame<B>, app: &mut App) {
     let rects = Layout::default()
         .direction(Direction::Vertical)

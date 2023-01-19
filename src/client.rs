@@ -2,6 +2,7 @@ use eyre::bail;
 use serde_json::{json, Value};
 use websockets::{Frame, WebSocket};
 
+/// Facilitates websocket connectin to coinbase.
 pub struct Client {
     ws: WebSocket,
 }
@@ -24,6 +25,7 @@ impl Client {
         Ok(Self { ws })
     }
 
+    /// Wait for the next frame.
     pub async fn next_frame(&mut self) -> eyre::Result<Value> {
         let Frame::Text { payload, .. } = self.ws.receive().await? else {
             bail!("Error receiving next frame");
@@ -32,6 +34,7 @@ impl Client {
         Ok(serde_json::from_str(&payload)?)
     }
 
+    /// Disconnect this client.
     pub async fn close(&mut self) -> eyre::Result<()> {
         self.ws.close(None).await?;
         Ok(())
